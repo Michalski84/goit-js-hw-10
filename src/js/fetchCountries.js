@@ -1,24 +1,45 @@
+import debounce from 'lodash/debounce';
+import { Notify } from 'notiflix/build/notiflix-notify-aio';
+
 const fetchCountriesInput = document.querySelector('input');
 const countryList = document.querySelector('.country-list');
 
-fetchCountriesInput.addEventListener('input', () => {
-  const name = fetchCountriesInput.value;
-  fetchCountries(name)
-    .then(countries => renderCountriesList(countries))
-    .catch(error => console.log(error));
-});
+fetchCountriesInput.addEventListener(
+  'input',
+  debounce(() => {
+    const name = fetchCountriesInput.value.trim();
+    if (name === '') {
+      countryList.innerHTML = '';
+      return;
+    }
+    fetchCountries(name)
+      .then(countries => renderCountriesList(countries))
+      .catch(error => console.log(error));
+  }, 300)
+);
 
 function fetchCountries(name, limit = 10) {
   return fetch(
     `https://restcountries.com/v2/name/${name}?fields=name,capital,population,languages,flags,official`
   )
     .then(response => {
-      if (!response.ok) throw new Error(response.status);
+      if (!response.ok) {
+        if (response.status === 404) {
+          Notify.failure('Oops, there is no country with that name.');
+        } else {
+          throw new Error(response.status);
+        }
+      }
       return response.json();
     })
     .then(countries => {
       if (countries.length > 1) {
-        return countries.map(country => {
+        if (countries.length > limit) {
+          Notify.info(
+            'Too many matches found. Please enter a more specific name.'
+          );
+        }
+        return countries.slice(0, limit).map(country => {
           return {
             name: country.name,
             flag: country.flags.svg,
@@ -27,6 +48,10 @@ function fetchCountries(name, limit = 10) {
       } else {
         return countries;
       }
+    })
+    .catch(error => {
+      console.log(error);
+      Notify.failure('Oops, something went wrong. Please try again later.');
     });
 }
 
@@ -47,7 +72,7 @@ function renderCountriesList(countries) {
                 <p><b>Languages</b>: ${languages}</p>
               </li>`;
   } else {
-    const limitedCountries = countries.slice(0, 10); // wybierz maksymalnie 10 krajów
+    const limitedCountries = countries.slice(0, 10);
     markup = limitedCountries
       .map(country => {
         return `<li style="list-style-type: none;">
@@ -61,42 +86,3 @@ function renderCountriesList(countries) {
   }
   countryList.innerHTML = markup;
 }
-
-fetchCountries('polska')
-  .then(data => {
-    console.log(data);
-  })
-  .catch(error => {
-    console.error(error);
-  });
-
-// const fetchUsersBtn = document.querySelector('.btn');
-// const userList = document.querySelector('.user-list');
-
-// fetchUsersBtn.addEventListener('click', () => {
-//   fetchUsers()
-//     .then(users => renderUserList(users))
-//     .catch(error => console.log(error));
-// });
-
-// function fetchUsers() {
-//   return fetch('https://jsonplaceholder.typicode.com/users').then(response => {
-//     if (!response.ok) {
-//       throw new Error(response.status);
-//     }
-//     return response.json();
-//   });
-// }
-
-// function renderUserList(users) {
-//   const markup = users
-//     .map(user => {
-//       return `<li>
-//           <p><b>Name</b>: ${user.name}</p>
-//           <p><b>Email</b>: ${user.email}</p>
-//           <p><b>Company</b>: ${user.company.name}</p>
-//         </li>`;
-//     })
-//     .join('');
-//   userList.innerHTML = markup;
-// }
